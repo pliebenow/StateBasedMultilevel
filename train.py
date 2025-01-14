@@ -18,6 +18,7 @@ transform = transforms.Compose([
     transforms.Normalize(mean=[0.5071, 0.4867, 0.4408], std=[0.2675, 0.2565, 0.2761]),  # CIFAR-100 mean and std
 ])
 
+print("Download data set")
 # Load CIFAR-100 dataset
 trainset = torchvision.datasets.CIFAR100(root='./data', train=True, download=True, transform=transform)
 testset = torchvision.datasets.CIFAR100(root='./data', train=False, download=True, transform=transform)
@@ -25,6 +26,7 @@ testset = torchvision.datasets.CIFAR100(root='./data', train=False, download=Tru
 # Create data loaders
 trainloader = DataLoader(trainset, batch_size=128, shuffle=True, num_workers=2)
 testloader = DataLoader(testset, batch_size=100, shuffle=False, num_workers=2)
+print("data set downloaded")
 
 
 # Training function
@@ -80,6 +82,7 @@ model.to(device)
 
 num_epochs = 100
 for epoch in range(num_epochs):
+    print(f"train epoch {epoch}")
     train_loss, train_acc = train(model, trainloader, criterion, optimizer, device)
     test_loss, test_acc = test(model, testloader, criterion, device)
     print(f"Epoch {epoch+1}/{num_epochs}")
