@@ -7,26 +7,9 @@ import torch.optim as optim
 import torchvision
 import torchvision.transforms as transforms
 from torch.utils.data import DataLoader
-
+import data 
 from resNet152 import ResNet152
-
-# Define data transforms: normalizing and data augmentation
-transform = transforms.Compose([
-    transforms.RandomHorizontalFlip(),
-    transforms.RandomCrop(32, padding=4),
-    transforms.ToTensor(),
-    transforms.Normalize(mean=[0.5071, 0.4867, 0.4408], std=[0.2675, 0.2565, 0.2761]),  # CIFAR-100 mean and std
-])
-
-print("Download data set")
-# Load CIFAR-100 dataset
-trainset = torchvision.datasets.CIFAR100(root='./data', train=True, download=True, transform=transform)
-testset = torchvision.datasets.CIFAR100(root='./data', train=False, download=True, transform=transform)
-
-# Create data loaders
-trainloader = DataLoader(trainset, batch_size=128, shuffle=True, num_workers=2)
-testloader = DataLoader(testset, batch_size=100, shuffle=False, num_workers=2)
-print("data set downloaded")
+from load_cifar import load_data
 
 
 # Training function
@@ -71,20 +54,36 @@ def test(model, testloader, criterion, device):
     return avg_loss, accuracy
 
 
-# Instantiate the model, define loss function and optimizer
-model = ResNet152(num_classes=100)
-criterion = nn.CrossEntropyLoss()
+#hardware settings
+torch.cuda.empty_cache()  # Frees unused cached memory
+torch.cuda.memory_summary(device=None, abbreviated=False)
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+#load data
+trainloader, testloader = load_data(cifar10=True,cifar100=False)
+
+# instantiate the model, define loss function and optimizer
+model = ResNet152(num_blocks_layer1 = 3,  num_blocks_layer2= 8, num_blocks_layer3=36, num_blocks_layer4=3)
 optimizer = optim.SGD(model.parameters(), lr=0.1, momentum=0.9, weight_decay=5e-4)
 
-# Training and evaluation loop
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+# scheduler to reduce learning rate when validation loss plateaus
+scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+    optimizer, mode='min', factor=0.1, patience=5, verbose=True
+)
+
+criterion = nn.CrossEntropyLoss()
+torch.backends.cudnn.benchmark = True
+
 model.to(device)
 
-num_epochs = 100
+#parameters
+num_epochs = 50
+running_loss=0
+total = 0
+correct=0
 for epoch in range(num_epochs):
-    print(f"train epoch {epoch}")
-    train_loss, train_acc = train(model, trainloader, criterion, optimizer, device)
-    test_loss, test_acc = test(model, testloader, criterion, device)
-    print(f"Epoch {epoch+1}/{num_epochs}")
-    print(f"Train Loss: {train_loss:.4f}, Train Accuracy: {train_acc:.2f}%")
-    print(f"Test Loss: {test_loss:.4f}, Test Accuracy: {test_acc:.2f}%")
+    avg_loss_train, accuracy_train = train(model, trainloader, criterion, optimizer, device)
+    avg_loss_test, accuracy_test = test(model, testloader, criterion, device)
+    scheduler.step(avg_loss_test)
+
+    print(f"epoch {epoch}, test loss: {avg_loss_test}, accuracy_test: {accuracy_test}")
